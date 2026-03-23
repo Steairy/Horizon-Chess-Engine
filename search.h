@@ -21,6 +21,20 @@ struct SearchInfo {
     bool stopSearch = false;
     std::chrono::steady_clock::time_point startTime;
     double timeLimit = 0;
+    uint32_t lastIterationBest = 0;
+    int lastIterationEval = 0;
+    uint8_t iterativeDepth = 1;
+    std::array<std::array<uint32_t, 2>, 128> killerMoves;
+
+    void reset(){
+        nodeCount = 0;
+        stopSearch = false;
+        timeLimit = 0;
+        lastIterationBest = 0;
+        lastIterationEval = 0;
+        killerMoves = {};
+        iterativeDepth = 1;
+    }
 };
 
 class Search {
@@ -43,7 +57,7 @@ public:
     int getActivatedArray(Board& board, std::array<int, 70>& out);
 
     // Alpha-beta search
-    int alphabeta(Board& board, uint8_t depth, int alpha = -100000, int beta = 100000, bool root = true);
+    int alphabeta(Board& board, uint8_t depth, int alpha = -100000, int beta = 100000, bool root = true, int ply = 0);
 
     // Iterative deepening search
     int iterative(Board& board, double limit);

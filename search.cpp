@@ -25,7 +25,7 @@ int Search::getActivatedArray(Board& board, std::array<int, 70>& out){
     return count;
 }
 
-int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, bool root){
+int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, bool root, int ply){
     bool quiescence = false;
     info.nodeCount++;
 
@@ -44,7 +44,7 @@ int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, bool roo
             return 0;
         }
         else{
-            return -MATE_VALUE - depth; // Depth will be lower if it is deeper, so this priorotizes getting mated late and mating early
+            return -MATE_VALUE + ply; // Priorotizes getting mated late and mating early
         }
     }
 
@@ -69,24 +69,25 @@ int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, bool roo
 
     uint32_t bestMoveApproximation = ttMatch ? currentT.move : 0;
     auto moveOrderingLambda = [&](uint32_t m1, uint32_t m2){ // for move ordering
-        int score1 = 0, score2 = 0;
+        auto getScore = [&](uint32_t m) {
+            if (m == bestMoveApproximation) return 1000000; // Best guess from TT
+            
+            bool isCapture = (m >> 16) & 0x1;
+            if (isCapture) {
+                int moving = ((m >> 12) & 0xF) % 6;
+                int captured = ((m >> 17) & 0xF) % 6;
+                return 900000 + ((captured * 3)- moving); // MVV-LVA
+            }
 
-        if(m1 == bestMoveApproximation) score1 = 100;
-        if(m2 == bestMoveApproximation) score2 = 100;
+            // Killer move
+            if (m == info.killerMoves[ply][0]) return 800000;
+            if (m == info.killerMoves[ply][1]) return 700000;
 
-        // Captures
-        if((m1 >> 16)&0x1){
-            int movingPiece = (m1 >> 12)&0xF;
-            int capturedPiece = (m1 >> 17)&0xF;
-            score1 = std::max(score1, (capturedPiece%6)-(movingPiece%6));
-        }
-        if((m2 >> 16)&0x1){ 
-            int movingPiece = (m2 >> 12)&0xF;
-            int capturedPiece = (m2 >> 17)&0xF;
-            score2 = std::max(score2, (capturedPiece%6)-(movingPiece%6));
-        }
+            return 0; // Normal move
+        };
 
-        return score1 > score2;
+
+        return getScore(m1) > getScore(m2);
     };
 
 
@@ -97,6 +98,9 @@ int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, bool roo
 
     int eval = -10000000;
     for(int i = 0; i < count; i++){
+        uint32_t move = legal[i];
+        bool isCapture = (move >> 16) & 0x1;
+
         if(info.nodeCount % 512 == 0){
             auto now = std::chrono::steady_clock::now();
             double elapsed = std::chrono::duration<double, std::milli>(now - info.startTime).count();
@@ -107,15 +111,15 @@ int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, bool roo
             break;
         }
 
-        board.makeMove(legal[i], true);
+        board.makeMove(move, true);
 
-        //Late move reductions
-        int reduction = ((i >= 4) && (depth >= 3) && !(legal[i] >> 16)&0x1) ? 1 + (depth >= 6) : 0; // no reductions if capture
+        // Late move reductions
+        int reduction = ((i >= 4) && (depth >= 3) && !isCapture) ? 1 + (depth >= 6) : 0; // No reductions if capture
 
         int score;
-        score = -alphabeta(board, depth-1-reduction, -beta, -alpha, false);
+        score = -alphabeta(board, depth-1-reduction, -beta, -alpha, false, ply+1);
         if(score > alpha && reduction){
-            score = -alphabeta(board, depth-1, -beta, -alpha, false);
+            score = -alphabeta(board, depth-1, -beta, -alpha, false, ply+1);
         }
         
         board.unmakeMove();
@@ -123,10 +127,15 @@ int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, bool roo
         if(score > eval){
             eval = score;
             alpha = std::max(score, alpha);
-            currentBest = legal[i];
+            currentBest = move;
         }
 
         if(beta <= alpha){
+            //put it into killer moves if not capture and not already the primary killer
+            if(!isCapture && move != info.killerMoves[ply][0]){
+                info.killerMoves[ply][1] = info.killerMoves[ply][0];
+                info.killerMoves[ply][0] = move;
+            }
             break;
         }
     }
@@ -155,31 +164,24 @@ int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, bool roo
 
 int Search::iterative(Board& board, double limit){
     bestMove = 0;
-    info.stopSearch = false;
-    info.nodeCount = 0;
+    info.reset();
+    info.startTime = std::chrono::steady_clock::now();
     info.timeLimit = limit;
 
-    uint32_t lastIterationBest;
-    int lastIterationEval;
-
-    int evaluation;
-    uint8_t currentDepth = 1;
-
-    info.startTime = std::chrono::steady_clock::now();
     while(true){
         if(info.stopSearch) break;
-        if(currentDepth > 1 && ((lastIterationEval >= MATE_VALUE) || (lastIterationEval <= -MATE_VALUE))) break; // no need to continue search if it is guaranteed mate
+        if(info.iterativeDepth > 1 && ((info.lastIterationEval >= MATE_VALUE) || (info.lastIterationEval <= -MATE_VALUE))) break; // no need to continue search if it is guaranteed mate
 
-        evaluation = alphabeta(board, currentDepth);
-        currentDepth++;
+        int evaluation = alphabeta(board, info.iterativeDepth);
+        info.iterativeDepth++;
         if(!info.stopSearch){
-            lastIterationEval = evaluation;
-            lastIterationBest = bestMove;
+            info.lastIterationEval = evaluation;
+            info.lastIterationBest = bestMove;
         }
     }
 
-    //std::cout << (int)currentDepth-1 << "\n";
+    //std::cout << (int)info.iterativeDepth-1 << "\n";
 
-    bestMove = lastIterationBest;
-    return lastIterationEval;
+    bestMove = info.lastIterationBest;
+    return info.lastIterationEval;
 }

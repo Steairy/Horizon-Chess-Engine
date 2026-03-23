@@ -18,7 +18,7 @@ class Interface {
         }
 
         if(tokens[0] == "uci"){
-            std::cout << "id name Horizon 1.0" << std::endl;
+            std::cout << "id name Horizon 1.1" << std::endl;
             std::cout << "id author Steairy" << std::endl;
             std::cout << "uciok" << std::endl;
         }
