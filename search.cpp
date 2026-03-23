@@ -26,6 +26,16 @@ int Search::getActivatedArray(Board& board, std::array<int, 70>& out){
 }
 
 int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, bool root, int ply){
+    if(info.nodeCount % 512 == 0){
+        auto now = std::chrono::steady_clock::now();
+        double elapsed = std::chrono::duration<double, std::milli>(now - info.startTime).count();
+        if(elapsed > info.timeLimit) info.stopSearch = true;
+    }
+
+    if(info.stopSearch){
+        return 0;
+    }
+
     bool quiescence = false;
     info.nodeCount++;
 
@@ -48,17 +58,28 @@ int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, bool roo
         }
     }
 
+    int v = getActivatedArray(board, activatedArray);
+    int staticEval = nnue.forward(activatedArray, v);
+
+    // Reverse Futility Pruning
+    bool inCheck = board.squareAttacked(__builtin_ctzll(board.bitboards[5+(6*board.turn)]), 1-board.turn);
+    if(depth > 0 && depth <= 3 && !inCheck && !root){
+        int margin = 120 * depth;
+
+        if(staticEval-margin > beta){
+            return staticEval-margin;
+        }
+    }
+
     if(depth == 0){
-        int v = getActivatedArray(board, activatedArray);
-        int ev = nnue.forward(activatedArray, v);
-        if(ev >= beta){
-            return ev;
+        if(staticEval >= beta){
+            return staticEval;
         }
         board.generateLegal(true);
         if(board.legalMoveCount == 0){
-            return ev;
+            return staticEval;
         }
-        alpha = std::max(alpha, ev);
+        alpha = std::max(alpha, staticEval);
         depth = 1;
         quiescence = true;
     }
@@ -86,7 +107,6 @@ int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, bool roo
             return 0; // Normal move
         };
 
-
         return getScore(m1) > getScore(m2);
     };
 
@@ -96,26 +116,20 @@ int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, bool roo
     int originalAlpha = alpha;
     uint32_t currentBest = 0;
 
-    int eval = -10000000;
+    int eval = -MATE_VALUE;
     for(int i = 0; i < count; i++){
-        uint32_t move = legal[i];
-        bool isCapture = (move >> 16) & 0x1;
-
-        if(info.nodeCount % 512 == 0){
-            auto now = std::chrono::steady_clock::now();
-            double elapsed = std::chrono::duration<double, std::milli>(now - info.startTime).count();
-            if(elapsed > info.timeLimit) info.stopSearch = true;
-        }
-        
         if(info.stopSearch){
             break;
         }
 
+        uint32_t move = legal[i];
+        bool isCapture = (move >> 16) & 0x1;
+        
         board.makeMove(move, true);
 
         // Late move reductions
-        int reduction = ((i >= 4) && (depth >= 3) && !isCapture) ? 1 + (depth >= 6) : 0; // No reductions if capture
-
+        int reduction = ((i >= 5) && (depth >= 3) && !isCapture) ? 1 + (depth >= 6) : 0;
+        
         int score;
         score = -alphabeta(board, depth-1-reduction, -beta, -alpha, false, ply+1);
         if(score > alpha && reduction){
