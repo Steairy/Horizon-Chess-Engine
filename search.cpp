@@ -71,6 +71,36 @@ int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, bool roo
         }
     }
 
+    // Null Move Pruning
+    int staticAdd = 6*board.turn;
+    bool notEndgame = (board.bitboards[4+staticAdd] | board.bitboards[3+staticAdd]) || (__builtin_popcountll(board.bitboards[1+staticAdd] | board.bitboards[2+staticAdd]) > 1);
+    if(notEndgame && !inCheck && !root && staticEval >= beta && depth>=2){
+        int r = 2+ depth/4;
+
+        int prevEnPassant = board.enPassantSquare;
+        // Make null move
+        board.turn = !board.turn;
+        board.zobrist.hash ^= board.zobrist.boardStateTable[0];
+        board.enPassantSquare = 0;
+        if(prevEnPassant != 0){
+            board.zobrist.hash ^= board.zobrist.enPassantTable[prevEnPassant];
+        }
+
+        int v = -alphabeta(board, std::max(0, depth-1-r), -beta, -(beta-1), false, ply+1);
+
+        // Unmake null move
+        board.turn = !board.turn;
+        board.zobrist.hash ^= board.zobrist.boardStateTable[0];
+        if(prevEnPassant != 0){
+            board.enPassantSquare = prevEnPassant;
+            board.zobrist.hash ^= board.zobrist.enPassantTable[prevEnPassant];
+        }
+
+        if(v >= beta){
+            return v;
+        }
+    }
+
     if(depth == 0){
         if(staticEval >= beta){
             return staticEval;
@@ -124,7 +154,7 @@ int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, bool roo
 
         uint32_t move = legal[i];
         bool isCapture = (move >> 16) & 0x1;
-        
+
         board.makeMove(move, true);
 
         // Late move reductions
