@@ -57,7 +57,7 @@ public:
     int getActivatedArray(Board& board, std::array<int, 70>& out);
 
     // Alpha-beta search
-    int alphabeta(Board& board, uint8_t depth, int alpha = -100000, int beta = 100000, bool root = true, int ply = 0);
+    int alphabeta(Board& board, uint8_t depth, int alpha, int beta, bool root, int ply);
 
     // Iterative deepening search
     int iterative(Board& board, double limit);

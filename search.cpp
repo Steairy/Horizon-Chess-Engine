@@ -75,7 +75,7 @@ int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, bool roo
     int staticAdd = 6*board.turn;
     bool notEndgame = (board.bitboards[4+staticAdd] | board.bitboards[3+staticAdd]) || (__builtin_popcountll(board.bitboards[1+staticAdd] | board.bitboards[2+staticAdd]) > 1);
     if(notEndgame && !inCheck && !root && staticEval >= beta && depth>=2){
-        int r = 2+ depth/4;
+        int r = 2+depth/4;
 
         int prevEnPassant = board.enPassantSquare;
         // Make null move
@@ -212,12 +212,36 @@ int Search::iterative(Board& board, double limit){
     info.startTime = std::chrono::steady_clock::now();
     info.timeLimit = limit;
 
-    while(true){
+    while(info.iterativeDepth++){
         if(info.stopSearch) break;
-        if(info.iterativeDepth > 1 && ((info.lastIterationEval >= MATE_VALUE) || (info.lastIterationEval <= -MATE_VALUE))) break; // no need to continue search if it is guaranteed mate
+        if(info.iterativeDepth > 1 && ((info.lastIterationEval >= MATE_VALUE-1000) || (info.lastIterationEval <= -MATE_VALUE+1000))) break; // no need to continue search if it is guaranteed mate
 
-        int evaluation = alphabeta(board, info.iterativeDepth);
-        info.iterativeDepth++;
+        int searchAlpha = -100000;
+        int searchBeta = 100000;
+        int windowLow = 0, windowHigh = 0;
+
+        // Aspiration Windows
+        if(info.iterativeDepth > 1){
+            windowLow = 30; windowHigh = 30;
+            searchAlpha = info.lastIterationEval; searchBeta = info.lastIterationEval;
+        }
+
+        bool failed = true;
+        int evaluation;
+        while(failed){
+            failed = false;
+            evaluation = alphabeta(board, info.iterativeDepth, searchAlpha-windowLow, searchBeta+windowHigh, true, 0);
+            if(evaluation <= searchAlpha-windowLow){
+                failed = true;
+                windowLow *= 2;
+            }
+
+            if(evaluation >= searchBeta+windowHigh){
+                failed = true;
+                windowHigh *= 2;
+            }
+        }
+        
         if(!info.stopSearch){
             info.lastIterationEval = evaluation;
             info.lastIterationBest = bestMove;
