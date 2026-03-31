@@ -86,11 +86,15 @@ class Interface {
                 moveTime = 1000; // default
             }
 
-            float eval = search.iterative(board, moveTime);
+            int eval = search.iterative(board, moveTime);
+            long long nodes = search.info.nodeCount;
+            uint8_t depth = search.info.iterativeDepth-1;
+
             uint32_t bestMove = search.bestMove;
 
             std::string move = bestMove != 0 ? board.moveToUCI(bestMove) : "0000";
 
+            printf("info depth %d score cp %d nodes %lld nps %lld\n", depth, eval, nodes, (nodes*1000/moveTime)); fflush(stdout);
             std::cout << "bestmove " << move << std::endl;
         }
     }

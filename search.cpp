@@ -25,7 +25,7 @@ int Search::getActivatedArray(Board& board, std::array<int, 70>& out){
     return count;
 }
 
-int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, bool root, int ply){
+int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, int ply){
     if(info.nodeCount % 512 == 0){
         auto now = std::chrono::steady_clock::now();
         double elapsed = std::chrono::duration<double, std::milli>(now - info.startTime).count();
@@ -36,6 +36,7 @@ int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, bool roo
         return 0;
     }
 
+    bool root = ply == 0;
     bool quiescence = false;
     info.nodeCount++;
 
@@ -86,7 +87,7 @@ int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, bool roo
             board.zobrist.hash ^= board.zobrist.enPassantTable[prevEnPassant];
         }
 
-        int v = -alphabeta(board, std::max(0, depth-1-r), -beta, -(beta-1), false, ply+1);
+        int v = -alphabeta(board, std::max(0, depth-1-r), -beta, -(beta-1), ply+1);
 
         // Unmake null move
         board.turn = !board.turn;
@@ -161,9 +162,9 @@ int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, bool roo
         int reduction = ((i >= 5) && (depth >= 3) && !isCapture) ? 1 + (depth >= 6) : 0;
         
         int score;
-        score = -alphabeta(board, depth-1-reduction, -beta, -alpha, false, ply+1);
+        score = -alphabeta(board, depth-1-reduction, -beta, -alpha, ply+1);
         if(score > alpha && reduction){
-            score = -alphabeta(board, depth-1, -beta, -alpha, false, ply+1);
+            score = -alphabeta(board, depth-1, -beta, -alpha, ply+1);
         }
         
         board.unmakeMove();
@@ -230,7 +231,7 @@ int Search::iterative(Board& board, double limit){
         int evaluation;
         while(failed){
             failed = false;
-            evaluation = alphabeta(board, info.iterativeDepth, searchAlpha-windowLow, searchBeta+windowHigh, true, 0);
+            evaluation = alphabeta(board, info.iterativeDepth, searchAlpha-windowLow, searchBeta+windowHigh, 0);
             if(evaluation <= searchAlpha-windowLow){
                 failed = true;
                 windowLow *= 2;
