@@ -30,6 +30,7 @@ public:
     Zobrist zobrist;
 
     std::array<uint64_t, 64> pinMasks;
+    std::array<uint64_t, 64> discoveredCheckMasks;
 
     int totalMoves = 0;
     std::array<bool, 4> castlingRights = { true, true, true, true };
@@ -65,16 +66,18 @@ public:
     void removeBit(int bitboardIndex, int bit);
 
     void generatePinMasks();
+    void generateDiscoveredCheckMasks();
+    bool isMoveCheck(uint32_t move);
     bool leavesInCheck(uint32_t move);
     void generateLegal(bool capturesOnly=false);
     void generatePseudoLegal(int piece, int square, std::array<uint32_t, 218>& movesVector, int& currentMove, bool capturesOnly=false);
 
     uint64_t generateWhitePawn(int square, std::array<uint32_t, 218>& movesVector, int& currentMove);
     uint64_t generateBlackPawn(int square, std::array<uint32_t, 218>& movesVector, int& currentMove);
-    uint64_t generateKnight(int square, std::array<uint32_t, 218>& movesVector, int& currentMove);
-    uint64_t generateBishop(int square, std::array<uint32_t, 218>& movesVector, int& currentMove);
-    uint64_t generateRook(int square, std::array<uint32_t, 218>& movesVector, int& currentMove);
-    uint64_t generateQueen(int square, std::array<uint32_t, 218>& movesVector, int& currentMove);
+    uint64_t generateKnight(int square);
+    uint64_t generateBishop(int square);
+    uint64_t generateRook(int square);
+    uint64_t generateQueen(int square);
     uint64_t generateWhiteKing(int square, std::array<uint32_t, 218>& movesVector, int& currentMove);
     uint64_t generateBlackKing(int square, std::array<uint32_t, 218>& movesVector, int& currentMove);
 

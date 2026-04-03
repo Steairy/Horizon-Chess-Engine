@@ -363,23 +363,23 @@ uint64_t Board::generateBlackPawn(int square, array<uint32_t, 218>& movesVector,
     return movesMask;
 }
 
-uint64_t Board::generateKnight(int square, array<uint32_t, 218>& movesVector, int& currentMove){
+uint64_t Board::generateKnight(int square){
     return knightAttacks[square];
 }
 
-uint64_t Board::generateBishop(int square, array<uint32_t, 218>& movesVector, int& currentMove){
+uint64_t Board::generateBishop(int square){
     uint64_t allPieces = getAllPieces();
     uint64_t blockerIndex = ((bishopLookups[square] & allPieces) * bishopMagics[square]) >> 55;
     return bishopAttacks[square][blockerIndex];
 }
 
-uint64_t Board::generateRook(int square, array<uint32_t, 218>& movesVector, int& currentMove){
+uint64_t Board::generateRook(int square){
     uint64_t allPieces = getAllPieces();
     uint64_t blockerIndex = ((rookLookups[square] & allPieces) * rookMagics[square]) >> 52;
     return rookAttacks[square][blockerIndex];
 }
 
-uint64_t Board::generateQueen(int square, array<uint32_t, 218>& movesVector, int& currentMove){
+uint64_t Board::generateQueen(int square){
     uint64_t allPieces = getAllPieces();
     uint64_t bishopBlockerIndex = ((bishopLookups[square] & allPieces) * bishopMagics[square]) >> 55;
     uint64_t rookBlockerIndex = ((rookLookups[square] & allPieces) * rookMagics[square]) >> 52;
@@ -424,19 +424,19 @@ void Board::generatePseudoLegal(int piece, int square, array<uint32_t, 218>& mov
     }
 
     if(piece == 1 || piece == 7){
-        movesMask = generateKnight(square, movesVector, currentMove);
+        movesMask = generateKnight(square);
     }
 
     if(piece == 2 || piece == 8){
-        movesMask = generateBishop(square, movesVector, currentMove);
+        movesMask = generateBishop(square);
     }
 
     if(piece == 3 || piece == 9){
-        movesMask = generateRook(square, movesVector, currentMove);
+        movesMask = generateRook(square);
     }
 
     if(piece == 4 || piece == 10){
-        movesMask = generateQueen(square, movesVector, currentMove);
+        movesMask = generateQueen(square);
     }
 
     if(piece == 6){
@@ -746,6 +746,87 @@ void Board::generatePinMasks(){
     }
 }
 
+void Board::generateDiscoveredCheckMasks(){
+    uint64_t allPieces = getAllPieces();
+    uint64_t friendlyPieces = getFriendlyPieces();
+
+    discoveredCheckMasks = {};
+    int enemyKing = __builtin_ctzll(bitboards[5+6*!turn]);
+
+    for(int piece = 2; piece < 5; piece++){
+        uint64_t slidingBitboard = bitboards[piece+(6*turn)];
+        while(slidingBitboard){
+            int sq = __builtin_ctzll(slidingBitboard);
+            uint64_t discoveryMask = inBetweenMasks[sq][enemyKing];
+
+            if(piece == 2){
+                discoveryMask &= bishopLookups[sq];
+            }
+
+            if(piece == 3){
+                discoveryMask &= rookLookups[sq];
+            }
+
+            uint64_t squares = discoveryMask & allPieces;
+            if(discoveryMask && (__builtin_popcountll(squares) == 1)){
+                squares &= friendlyPieces;
+                if(squares){
+                    discoveredCheckMasks[__builtin_ctzll(squares)] = discoveryMask;
+                }
+            }
+            slidingBitboard &= slidingBitboard-1;
+        }
+    }
+}
+
+bool Board::isMoveCheck(uint32_t move){
+    uint64_t enemyKing = bitboards[5+6*!turn];
+    int startSquare = move&0x3F;
+    int endSquare = (move >> 6)&0x3F;
+    int movingPiece = (move >> 12)&0xF;
+
+    bool check = false;
+
+    // Edge cases
+    bool isCastling = (move >> 22) & 0x1;
+    bool isEnPassant = (move >> 21) & 0x1;
+    bool isPromotion = (move >> 24) & 0x1;
+    if(isCastling || isEnPassant || isPromotion){
+        makeMove(move, false);
+        check = squareAttacked(__builtin_ctzll(enemyKing), !turn);
+        unmakeMove();
+    }
+    
+    else{
+        // Handle direct checks first
+        if(movingPiece == 0){
+            check = whitePawnAttacks[endSquare] & enemyKing;
+        }
+        else if(movingPiece == 6){
+            check = blackPawnAttacks[endSquare] & enemyKing;
+        }
+        else if(movingPiece == 1 || movingPiece == 7){
+            check = generateKnight(endSquare) & enemyKing;
+        }
+        else if(movingPiece == 2 || movingPiece == 8){
+            check = generateBishop(endSquare) & enemyKing;
+        }
+        else if(movingPiece == 3 || movingPiece == 9){
+            check = generateRook(endSquare) & enemyKing;
+        }
+        else if(movingPiece == 4 || movingPiece == 10){
+            check = generateQueen(endSquare) & enemyKing;
+        }
+
+        // Handle discovered checks
+        if(discoveredCheckMasks[startSquare] && !(discoveredCheckMasks[startSquare] & (1ULL << endSquare))){
+            check = true;
+        }
+    }
+
+    return check;
+}
+
 bool Board::leavesInCheck(uint32_t move){
     array<uint64_t, 12> tempBoards = bitboards;
     int startSquare = move&0x3F; int endSquare = (move >> 6)&0x3F; int movingPiece = (move >> 12)&0xF;
@@ -834,6 +915,8 @@ void Board::generateLegal(bool capturesOnly){
     }
 
     legalMoveCount = legalCurrent;
+
+    generateDiscoveredCheckMasks();
 }
 
 std::string Board::moveToUCI(uint32_t move){
