@@ -915,8 +915,6 @@ void Board::generateLegal(bool capturesOnly){
     }
 
     legalMoveCount = legalCurrent;
-
-    generateDiscoveredCheckMasks();
 }
 
 std::string Board::moveToUCI(uint32_t move){

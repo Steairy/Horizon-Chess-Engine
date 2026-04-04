@@ -94,7 +94,7 @@ class Interface {
 
             std::string move = bestMove != 0 ? board.moveToUCI(bestMove) : "0000";
 
-            printf("info depth %d score cp %d nodes %lld nps %lld\n", depth, eval, nodes, (nodes*1000/moveTime)); fflush(stdout);
+            printf("info depth %d seldepth %d score cp %d nodes %lld nps %lld\n", depth, search.info.selectiveDepth, eval, nodes, (nodes*1000/moveTime)); fflush(stdout);
             std::cout << "bestmove " << move << std::endl;
         }
     }

@@ -36,6 +36,10 @@ int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, int ply)
         return 0;
     }
 
+    if(ply > info.selectiveDepth){
+        info.selectiveDepth = ply;
+    }
+
     bool root = ply == 0;
     bool quiescence = false;
     info.nodeCount++;
@@ -119,6 +123,8 @@ int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, int ply)
     std::array<uint32_t, 218> legal = board.legalMoves;
     int count = board.legalMoveCount;
 
+    if(inCheck && count<=2 && !quiescence) depth++; // Check extensions
+
     uint32_t bestMoveApproximation = ttMatch ? currentT.move : 0;
     auto moveOrderingLambda = [&](uint32_t m1, uint32_t m2){ // for move ordering
         auto getScore = [&](uint32_t m) {
@@ -158,12 +164,15 @@ int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, int ply)
 
         board.makeMove(move, true);
 
-        // Late move reductions
-        int reduction = ((i >= 5) && (depth >= 3) && !isCapture) ? 1 + (depth >= 6) : 0;
+        int searchDepth = depth-1;
+
+        int LMR = ((i >= 5) && (depth >= 3) && !isCapture) ? 1 + (depth >= 6) : 0; // Late move reductions
+
+        searchDepth -= LMR;
         
         int score;
-        score = -alphabeta(board, depth-1-reduction, -beta, -alpha, ply+1);
-        if(score > alpha && reduction){
+        score = -alphabeta(board, searchDepth, -beta, -alpha, ply+1);
+        if(score > alpha && LMR){
             score = -alphabeta(board, depth-1, -beta, -alpha, ply+1);
         }
         
@@ -176,7 +185,7 @@ int Search::alphabeta(Board& board, uint8_t depth, int alpha, int beta, int ply)
         }
 
         if(beta <= alpha){
-            //put it into killer moves if not capture and not already the primary killer
+            //put it into killer moves if quiet and not already the primary killer
             if(!isCapture && move != info.killerMoves[ply][0]){
                 info.killerMoves[ply][1] = info.killerMoves[ply][0];
                 info.killerMoves[ply][0] = move;

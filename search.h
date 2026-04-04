@@ -24,6 +24,7 @@ struct SearchInfo {
     uint32_t lastIterationBest = 0;
     int lastIterationEval = 0;
     uint8_t iterativeDepth = 1;
+    int selectiveDepth = 0;
     std::array<std::array<uint32_t, 2>, 128> killerMoves;
 
     void reset(){
@@ -34,6 +35,7 @@ struct SearchInfo {
         lastIterationEval = 0;
         killerMoves = {};
         iterativeDepth = 1;
+        selectiveDepth = 0;
     }
 };
 
