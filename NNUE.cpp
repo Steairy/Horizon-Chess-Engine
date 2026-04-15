@@ -7,15 +7,15 @@ void NNUE::loadWeights() {
     std::ifstream f;
 
     f.open("weights/W1.bin", std::ios::binary);
-    f.read(reinterpret_cast<char*>(W1.data()), sizeof(float) * 772 * 1024);
+    f.read(reinterpret_cast<char*>(W1.data()), sizeof(float) * 772 * 256);
     f.close();
 
     f.open("weights/B1.bin", std::ios::binary);
-    f.read(reinterpret_cast<char*>(B1.data()), sizeof(float) * 1024);
+    f.read(reinterpret_cast<char*>(B1.data()), sizeof(float) * 256);
     f.close();
 
     f.open("weights/W2.bin", std::ios::binary);
-    f.read(reinterpret_cast<char*>(W2.data()), sizeof(float) * 1024 * 32);
+    f.read(reinterpret_cast<char*>(W2.data()), sizeof(float) * 256 * 32);
     f.close();
 
     f.open("weights/B2.bin", std::ios::binary);
@@ -69,19 +69,19 @@ int NNUE::forward(std::array<int, 70>& activated, int count){
         subtractions[subtractionCount++] = previousInput[prevIndex++];
 
     for(int i = 0; i < additionCount; i++){
-        for(int neuron = 0; neuron < 1024; neuron++){
+        for(int neuron = 0; neuron < 256; neuron++){
             out1[neuron] += W1[additions[i]][neuron];
         }
     }
 
     for(int i = 0; i < subtractionCount; i++){
-        for(int neuron = 0; neuron < 1024; neuron++){
+        for(int neuron = 0; neuron < 256; neuron++){
             out1[neuron] -= W1[subtractions[i]][neuron];
         }
     }
 
-    std::array<float, 1024> l1Activated{};
-    for(int neuron = 0; neuron < 1024; neuron++){
+    std::array<float, 256> l1Activated{};
+    for(int neuron = 0; neuron < 256; neuron++){
         l1Activated[neuron] = std::max(out1[neuron] + B1[neuron], 0.0f);
     }
 
@@ -89,7 +89,7 @@ int NNUE::forward(std::array<int, 70>& activated, int count){
     previousCount = count;
 
     // Layer1 -> Layer2
-    for(int ind = 0; ind < 1024; ind++){
+    for(int ind = 0; ind < 256; ind++){
         for(int neuron = 0; neuron < 32; neuron++){
             out2[neuron] += W2[ind][neuron] * l1Activated[ind];
         }
